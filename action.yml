@@ -7,6 +7,9 @@ inputs:
   path:
     description: 'The path to the config file'
     required: true
+outputs:
+  updated:
+    description: 'Whether the config has been updated'
 runs:
   using: 'node16'
   main: 'dist/index.js'

@@ -9852,12 +9852,16 @@ async function commitUpdate(config, GITHUB_SHA) {
     const path = core.getInput('path');
     core.info(`Writing config: ${data} at ${path}`);
     fs.writeFileSync(path, data, 'utf8');
+
+    core.setOutput("updated", true);
   } catch(error) {
     core.info(`Write failed: ${error.message}`);
   }
 }
 
 async function action() {
+  core.setOutput("updated", false);
+
   const { GITHUB_REF, GITHUB_SHA } = process.env;
   
   if (!GITHUB_REF) {
