@@ -1,0 +1,12 @@
+name: 'Service Pack Update'
+description: 'Updates the config file when a new branch is created'
+inputs:
+  token:
+    description: 'The secret github token to authorize tagging'
+    required: true
+  path:
+    description: 'The path to the config file'
+    required: true
+runs:
+  using: 'node16'
+  main: 'dist/index.js'
