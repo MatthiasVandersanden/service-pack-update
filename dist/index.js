@@ -9731,12 +9731,18 @@ function servicePackToString(sp) {
 function parseBranch(branch) {
   if (branch === undefined || branch === null || branch.length === 0) {
     core.info("Branch is undefined or empty")
-    return null;
+    return {
+      year: null, 
+      servicePack: null
+    };
   }
 
   if (!branch.startsWith('refs/heads/')) {
     core.info(`Not dealing with a branch: ${branch}`);
-    return null;
+    return {
+      year: null, 
+      servicePack: null
+    };
   }
 
   branch = branch.slice('refs/heads/'.length);
@@ -9747,8 +9753,11 @@ function parseBranch(branch) {
     // Single year branch, change year only
     try {
       let year = parseInt(parts[0]);
-      core.info(`Detected single year branch: ${year}`);
+      if (year < 2000 || year > 9999) {
+        throw Error();
+      }
 
+      core.info(`Detected single year branch: ${year}`);
       return {
         year,
         sp: null
@@ -9758,55 +9767,65 @@ function parseBranch(branch) {
       core.info(`Unrecognized branch format: ${error.message}`);
       return {
         year: null, 
-        sp: null
+        servicePack: null
       };
     }
   } else {
     // Year and service pack branch
     try {
       let year = parseInt(parts[0]);
-      let sp = parseServicePack(parts[1]);
+      if (year < 2000 || year > 9999) {
+        throw Error();
+      }
 
-      if (sp === null) {
+      let servicePack = parseServicePack(parts[1]);
+      if (servicePack === null) {
         // Only detected year
         core.info(`Detected year in branch: ${year}`);
         return {
           year,
-          sp: null
+          servicePack: null
         };
       }
 
       return {
         year,
-        sp
+        servicePack
       };
     } catch(error) {
       core.info(`Unrecognized branch format: ${error.message}`);
       return {
         year: null, 
-        sp: null
+        servicePack: null
       };
     }
   }
 }
 
-function updateConfig(config, cy, csp, by, bsp) {
+function updateConfig(config, branch) {
+  let cy = config.year;
+  let csp = parseServicePack(config.servicePack);
+  let by = branch.year;
+  let bsp = branch.servicePack;
+
   if (cy === null || csp === null) {
     core.info(`Config does not contain year or service pack`);
     return null;
   }
 
-  if (cy === by && csp.min === bsp.min && csp.max === bsp.max) {
+  let sameYear = by === null || (by !== null && cy === by);
+  let sameSp = bsp === null || (bsp !== null && csp.min === bsp.min && csp.max === bsp.max);
+  if (sameYear && sameSp) {
     core.info("No change detected, keeping original config");
     return null;
   }
 
-  if (by !== null) {
+  if (!sameYear) {
     core.info(`New year detected: updating config with year: ${by}`);
     config.year = by;
   }
 
-  if (bsp != null) {
+  if (!sameSp) {
     let servicePack = servicePackToString(bsp);
     core.info(`New service pack detected: updating config with servicePack: ${servicePack}`);
     config.servicePack = servicePack;
@@ -9844,12 +9863,10 @@ async function action() {
     return;
   }
 
-  let configYear = config["year"];
-  let configSp = parseServicePack(config["servicePack"]);
-  let { branchYear, branchSp } = parseBranch(GITHUB_REF);
+  let b = parseBranch(GITHUB_REF);
   
   core.info("Starting update.");
-  let updatedConfig = updateConfig(config, configYear, configSp, branchYear, branchSp);
+  let updatedConfig = updateConfig(config, b);
   if (updatedConfig !== null) {
     commitUpdate(updatedConfig, GITHUB_SHA);
   }
