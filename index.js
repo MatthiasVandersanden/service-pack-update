@@ -53,7 +53,7 @@ function parseBranch(branch) {
     return null;
   }
 
-  branch = branch.splice('refs/heads/'.length);
+  branch = branch.slice('refs/heads/'.length);
   core.info(`Branch name: ${branch}`);
 
   let parts = branch.split("-");
