@@ -9709,19 +9709,21 @@ function getConfig() {
 }
 
 function parseServicePack(sp) {
-  if (!sp.startsWith("sp")) {
-    core.info("Incorrect service pack: " + sp);
-    return null;
+  if (/sp\d\.\d$/.test(sp)) {
+    return {
+      min: parseInt(sp[4]),
+      maj: parseInt(sp[2])
+    }
   }
 
-  let parts = sp.split('.');
-  let maj = parseInt(parts[0].substr(2, parts[0].length - 1));
-  let min = parts.length === 1 ? 0 : parseInt(parts[1]);
-
-  return {
-    maj,
-    min
-  };
+  if (/sp\d$/.test(sp)) {
+    return {
+      min: 0,
+      maj: parseInt(sp[2])
+    }
+  }
+  
+  return null;
 }
 
 function servicePackToString(sp) {
@@ -9737,8 +9739,8 @@ function parseBranch(branch) {
     };
   }
 
-  if (!branch.startsWith('refs/heads/')) {
-    core.info(`Not dealing with a branch: ${branch}`);
+  if (!/refs\/heads\/\d\d\d\d(-sp\d(\.\d)?)?(-.*)?/.test(branch)) {
+    core.info(`Incorrect branch format: ${branch}`);
     return {
       year: null, 
       servicePack: null
@@ -9748,57 +9750,67 @@ function parseBranch(branch) {
   branch = branch.slice('refs/heads/'.length);
   core.info(`Branch name: ${branch}`);
 
-  let parts = branch.split("-");
-  if (parts.length === 1) {
-    // Single year branch, change year only
-    try {
-      let year = parseInt(parts[0]);
-      if (year < 2000 || year > 9999) {
-        throw Error();
-      }
-
-      core.info(`Detected single year branch: ${year}`);
-      return {
-        year,
-        sp: null
-      };
-    } catch(error) {
-      // Unrecognized format
-      core.info(`Unrecognized branch format: ${error.message}`);
+  if (/\d\d\d\d-sp\d(\.\d)?(-.*)?/.test(branch)) {
+    let year = parseInt(branch.substr(0, 4));
+    if (year === NaN || year < 2000 || year > 9999) {
+      core.info(`Incorrect year: ${error.message}`);
       return {
         year: null, 
         servicePack: null
-      };
+      }; 
     }
-  } else {
-    // Year and service pack branch
-    try {
-      let year = parseInt(parts[0]);
-      if (year < 2000 || year > 9999) {
-        throw Error();
-      }
-
-      let servicePack = parseServicePack(parts[1]);
-      if (servicePack === null) {
-        // Only detected year
-        core.info(`Detected year in branch: ${year}`);
-        return {
-          year,
-          servicePack: null
-        };
-      }
-
+    
+    let sp = branch.substr(5);
+    if (/sp\d\.\d(-.*)?/.test(sp)) {
+      core.info("Detect minor service pack");
+      let maj = parseInt(sp[2]);
+      let min = parseInt(sp[4]);
+      let servicePack = {maj, min};
       return {
         year,
         servicePack
       };
-    } catch(error) {
-      core.info(`Unrecognized branch format: ${error.message}`);
+    }
+
+    if (/sp\d(-.*)?/.test(sp)) {
+      core.info("Detect major service pack");
+      let maj = parseInt(sp[2]);
+      let min = 0;
+      let servicePack = {maj, min};
+      return {
+        year,
+        servicePack
+      };
+    }
+
+    core.info("Branch could not be matched")
+    return {
+      year: null,
+      servicePack: null
+    };
+  }
+
+  if (/\d\d\d\d(-.*)?/.test(branch)) {
+    core.info("Single year branch detected");
+    let year = parseInt(branch.substr(0, 4));
+    if (year === NaN || year < 2000 || year > 9999) {
+      core.info(`Incorrect year: ${year}`);
       return {
         year: null, 
         servicePack: null
-      };
+      }; 
     }
+
+    return {
+      year,
+      servicePack: null
+    };
+  }
+
+  core.info("Branch could not be matched")
+  return {
+    year: null,
+    servicePack: null
   }
 }
 
@@ -9840,16 +9852,12 @@ async function commitUpdate(config, GITHUB_SHA) {
     const path = core.getInput('path');
     core.info(`Writing config: ${data} at ${path}`);
     fs.writeFileSync(path, data, 'utf8');
-
-    core.setOutput('Updated', true);
-
   } catch(error) {
     core.info(`Write failed: ${error.message}`);
   }
 }
 
 async function action() {
-  core.setOutput('Updated', false);
   const { GITHUB_REF, GITHUB_SHA } = process.env;
   
   if (!GITHUB_REF) {
@@ -9863,10 +9871,10 @@ async function action() {
     return;
   }
 
-  let b = parseBranch(GITHUB_REF);
+  let branch = parseBranch(GITHUB_REF);
   
   core.info("Starting update.");
-  let updatedConfig = updateConfig(config, b);
+  let updatedConfig = updateConfig(config, branch);
   if (updatedConfig !== null) {
     commitUpdate(updatedConfig, GITHUB_SHA);
   }
