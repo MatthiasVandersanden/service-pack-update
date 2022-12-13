@@ -9846,7 +9846,7 @@ async function action() {
 
   let configYear = config["year"];
   let configSp = parseServicePack(config["servicePack"]);
-  let { branchYear, branchSp } = getYearAndServicePack(GITHUB_REF);
+  let { branchYear, branchSp } = parseBranch(GITHUB_REF);
   
   core.info("Starting update.");
   let updatedConfig = updateConfig(config, configYear, configSp, branchYear, branchSp);
