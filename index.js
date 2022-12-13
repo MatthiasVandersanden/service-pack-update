@@ -1,6 +1,7 @@
 const core = require('@actions/core');
 const github = require('@actions/github');
 const fs = require('fs');
+const path = require('path');
 
 const token = core.getInput("token");
 const octokit = github.getOctokit(token);
@@ -37,68 +38,113 @@ function parseServicePack(sp) {
   };
 }
 
-function parseTag(tag) {
-  try {
-    if (tag === undefined || tag === null || tag.length === 0) {
-      core.info("Tag is undefined or empty")
-      return null;
-    }
-  
-    if (!tag.startsWith('v')) {
-      core.info("Incorrect tag syntax: tags should start with a lowercase v");
-      return null;
-    }
-  
-    let parts = tag.split(".");
-    if (parts.length !== 3 && parts.length !== 4) {
-      core.info("Incorrect tag syntax: tags have three parts: a year, sp version and a count");
-      return null;
-    }
-  
-    let year = parseInt(parts[0].substr(1, parts[0].length - 1));
-    if (year < 2000 || year > 3000) {
-      core.info("Incorrect year: " + year);
-      return null;
-    }
-  
-    let sp = parseServicePack(parts.length === 3 ? parts[1] : `${parts[1]}.${parts[2]}`);
-    if (sp === null) {
-      return null;
-    }
+function servicePackToString(sp) {
+  return sp.min === 0 ? `sp${sp.maj}` : `sp${sp.maj}.${sp.min}`
+}
 
-    let count = parseInt(parts[parts.length - 1]);
-    if (count < 0) {
-      core.info(`Incorrect tag syntax: the counter should be positive (was ${count})`);
-      return null;
-    }
-  
-    return { year, sp, count };
-  } catch (error) {
+function parseBranch(branch) {
+  if (branch === undefined || branch === null || branch.length === 0) {
+    core.info("Branch is undefined or empty")
     return null;
+  }
+
+  if (!branch.startsWith('refs/heads/')) {
+    core.info(`Not dealing with a branch: ${branch}`);
+    return null;
+  }
+
+  branch = branch.splice('refs/heads/'.length);
+  core.info(`Branch name: ${branch}`);
+
+  let parts = branch.split("-");
+  if (parts.length === 1) {
+    // Single year branch, change year only
+    try {
+      let year = parseInt(parts[0]);
+      core.info(`Detected single year branch: ${year}`);
+
+      return {
+        year,
+        sp: null
+      };
+    } catch(error) {
+      // Unrecognized format
+      core.info(`Unrecognized branch format: ${error.message}`);
+      return {
+        year: null, 
+        sp: null
+      };
+    }
+  } else {
+    // Year and service pack branch
+    try {
+      let year = parseInt(parts[0]);
+      let sp = parseServicePack(parts[1]);
+
+      if (sp === null) {
+        // Only detected year
+        core.info(`Detected year in branch: ${year}`);
+        return {
+          year,
+          sp: null
+        };
+      }
+
+      return {
+        year,
+        sp
+      };
+    } catch(error) {
+      core.info(`Unrecognized branch format: ${error.message}`);
+      return {
+        year: null, 
+        sp: null
+      };
+    }
   }
 }
 
-function compareTags(a, b) {
-  if (a.year !== b.year) {
-    return a.year - b.year;
+function updateConfig(config, cy, csp, by, bsp) {
+  if (cy === null || csp === null) {
+    core.info(`Config does not contain year or service pack`);
+    return null;
   }
 
-  if (a.sp.maj !== b.sp.maj) {
-    return a.sp.maj - b.sp.maj;
+  if (cy === by && csp.min === bsp.min && csp.max === bsp.max) {
+    core.info("No change detected, keeping original config");
+    return null;
   }
 
-  if (a.sp.min !== b.sp.min) {
-    return a.sp.min - b.sp.min;
+  if (by !== null) {
+    core.info(`New year detected: updating config with year: ${by}`);
+    config.year = by;
   }
 
-  if (a.count !== b.count) {
-    return a.count - b.count;
+  if (bsp != null) {
+    let servicePack = servicePackToString(bsp);
+    core.info(`New service pack detected: updating config with servicePack: ${servicePack}`);
+    config.servicePack = servicePack;
   }
 
-  return 0;
+  return config;
+}
+
+async function commitUpdate(config, GITHUB_SHA) {
+  try {
+    let data = JSON.stringify(config);
+    const path = core.getInput('path');
+    core.info(`Writing config: ${data} at ${path}`);
+    fs.writeFileSync(path, data, 'utf8');
+
+    core.setOutput('Updated', true);
+
+  } catch(error) {
+    core.info(`Write failed: ${error.message}`);
+  }
 }
 
 async function action() {
+  core.setOutput('Updated', false);
   const { GITHUB_REF, GITHUB_SHA } = process.env;
   
   if (!GITHUB_REF) {
@@ -106,20 +152,23 @@ async function action() {
     return;
   }
   
-  if (!GITHUB_SHA) {
-    core.setFailed('Missing GITHUB_SHA.');
-    return;
-  }
-  
-  const config = getConfig();
+  let config = getConfig();
   if (config === null) {
-    core.setOutput('tag', undefined);
+    core.info(`Config not found`);
     return;
   }
+
+  let configYear = config["year"];
+  let configSp = parseServicePack(config["servicePack"]);
+  let { branchYear, branchSp } = getYearAndServicePack(GITHUB_REF);
   
   core.info("Starting update.");
+  let updatedConfig = updateConfig(config, configYear, configSp, branchYear, branchSp);
+  if (updatedConfig !== null) {
+    commitUpdate(updatedConfig, GITHUB_SHA);
+  }
 
-  core.info(GITHUB_REF);
+  core.info("Finished update");
 
   return 
 }
