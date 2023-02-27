@@ -41,7 +41,7 @@ function parseServicePack(sp) {
 }
 
 function servicePackToString(sp) {
-  return sp.min === 0 ? `sp${sp.maj}` : `sp${sp.maj}.${sp.min}`
+  return `sp${sp.maj}.${sp.min}`
 }
 
 function parseBranch(branch) {
