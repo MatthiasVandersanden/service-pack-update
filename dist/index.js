@@ -9708,26 +9708,26 @@ function getConfig() {
   }
 }
 
-function parseServicePack(sp) {
-  if (/sp\d\.\d$/.test(sp)) {
+function parseUpdate(up) {
+  if (/up\d\.\d$/.test(up)) {
     return {
-      min: parseInt(sp[4]),
-      maj: parseInt(sp[2])
+      min: parseInt(up[4]),
+      maj: parseInt(up[2])
     }
   }
 
-  if (/sp\d$/.test(sp)) {
+  if (/up\d$/.test(up)) {
     return {
       min: 0,
-      maj: parseInt(sp[2])
+      maj: parseInt(up[2])
     }
   }
   
   return null;
 }
 
-function servicePackToString(sp) {
-  return sp.min === 0 ? `sp${sp.maj}` : `sp${sp.maj}.${sp.min}`
+function updateToString(up) {
+  return `up${up.maj}.${up.min}`
 }
 
 function parseBranch(branch) {
@@ -9735,58 +9735,58 @@ function parseBranch(branch) {
     core.info("Branch is undefined or empty")
     return {
       year: null, 
-      servicePack: null
+      update: null
     };
   }
 
-  if (!/refs\/heads\/\d\d\d\d(-sp\d(\.\d)?)?(-.*)?/.test(branch)) {
+  if (!/refs\/heads\/\d\d\d\d(-up\d(\.\d)?)?(-.*)?/.test(branch) && !/refs\/heads\/\d\d\d\d(-sp\d(\.\d)?)?(-.*)?/.test(branch)) {
     core.info(`Incorrect branch format: ${branch}`);
     return {
       year: null, 
-      servicePack: null
+      update: null
     };
   }
 
   branch = branch.slice('refs/heads/'.length);
   core.info(`Branch name: ${branch}`);
 
-  if (/\d\d\d\d-sp\d(\.\d)?(-.*)?/.test(branch)) {
+  if (/\d\d\d\d-up\d(\.\d)?(-.*)?/.test(branch)) {
     let year = parseInt(branch.substr(0, 4));
     if (year === NaN || year < 2000 || year > 9999) {
       core.info(`Incorrect year: ${error.message}`);
       return {
         year: null, 
-        servicePack: null
+        update: null
       }; 
     }
     
-    let sp = branch.substr(5);
-    if (/sp\d\.\d(-.*)?/.test(sp)) {
+    let up = branch.substr(5);
+    if (/up\d\.\d(-.*)?/.test(up)) {
       core.info("Detect minor service pack");
-      let maj = parseInt(sp[2]);
-      let min = parseInt(sp[4]);
-      let servicePack = {maj, min};
+      let maj = parseInt(up[2]);
+      let min = parseInt(up[4]);
+      let update = {maj, min};
       return {
         year,
-        servicePack
+        update
       };
     }
 
-    if (/sp\d(-.*)?/.test(sp)) {
+    if (/up\d(-.*)?/.test(up)) {
       core.info("Detect major service pack");
-      let maj = parseInt(sp[2]);
+      let maj = parseInt(up[2]);
       let min = 0;
-      let servicePack = {maj, min};
+      let update = {maj, min};
       return {
         year,
-        servicePack
+        update
       };
     }
 
     core.info("Branch could not be matched")
     return {
       year: null,
-      servicePack: null
+      update: null
     };
   }
 
@@ -9797,37 +9797,37 @@ function parseBranch(branch) {
       core.info(`Incorrect year: ${year}`);
       return {
         year: null, 
-        servicePack: null
+        update: null
       }; 
     }
 
     return {
       year,
-      servicePack: null
+      update: null
     };
   }
 
   core.info("Branch could not be matched")
   return {
     year: null,
-    servicePack: null
+    update: null
   }
 }
 
 function updateConfig(config, branch) {
   let cy = config.year;
-  let csp = parseServicePack(config.servicePack);
+  let cup = parseUpdate(config.update);
   let by = branch.year;
-  let bsp = branch.servicePack;
+  let bup = branch.update;
 
-  if (cy === null || csp === null) {
+  if (cy === null || cup === null) {
     core.info(`Config does not contain year or service pack`);
     return null;
   }
 
   let sameYear = by === null || (by !== null && cy === by);
-  let sameSp = bsp === null || (bsp !== null && csp.min === bsp.min && csp.max === bsp.max);
-  if (sameYear && sameSp) {
+  let sameUp = bup === null || (bup !== null && cup.min === bup.min && cup.max === bup.max);
+  if (sameYear && sameUp) {
     core.info("No change detected, keeping original config");
     return null;
   }
@@ -9837,10 +9837,10 @@ function updateConfig(config, branch) {
     config.year = by;
   }
 
-  if (!sameSp) {
-    let servicePack = servicePackToString(bsp);
-    core.info(`New service pack detected: updating config with servicePack: ${servicePack}`);
-    config.servicePack = servicePack;
+  if (!sameUp) {
+    let update = updateToString(bup);
+    core.info(`New service pack detected: updating config with update: ${update}`);
+    config.update = update;
   }
 
   return config;
@@ -9897,6 +9897,7 @@ async function run() {
 }
 
 run();
+
 })();
 
 module.exports = __webpack_exports__;

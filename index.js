@@ -22,7 +22,7 @@ function getConfig() {
   }
 }
 
-function parseServicePack(up) {
+function parseUpdate(up) {
   if (/up\d\.\d$/.test(up)) {
     return {
       min: parseInt(up[4]),
@@ -40,7 +40,7 @@ function parseServicePack(up) {
   return null;
 }
 
-function servicePackToString(up) {
+function updateToString(up) {
   return `up${up.maj}.${up.min}`
 }
 
@@ -49,7 +49,7 @@ function parseBranch(branch) {
     core.info("Branch is undefined or empty")
     return {
       year: null, 
-      servicePack: null
+      update: null
     };
   }
 
@@ -57,7 +57,7 @@ function parseBranch(branch) {
     core.info(`Incorrect branch format: ${branch}`);
     return {
       year: null, 
-      servicePack: null
+      update: null
     };
   }
 
@@ -70,7 +70,7 @@ function parseBranch(branch) {
       core.info(`Incorrect year: ${error.message}`);
       return {
         year: null, 
-        servicePack: null
+        update: null
       }; 
     }
     
@@ -79,10 +79,10 @@ function parseBranch(branch) {
       core.info("Detect minor service pack");
       let maj = parseInt(up[2]);
       let min = parseInt(up[4]);
-      let servicePack = {maj, min};
+      let update = {maj, min};
       return {
         year,
-        servicePack
+        update
       };
     }
 
@@ -90,17 +90,17 @@ function parseBranch(branch) {
       core.info("Detect major service pack");
       let maj = parseInt(up[2]);
       let min = 0;
-      let servicePack = {maj, min};
+      let update = {maj, min};
       return {
         year,
-        servicePack
+        update
       };
     }
 
     core.info("Branch could not be matched")
     return {
       year: null,
-      servicePack: null
+      update: null
     };
   }
 
@@ -111,28 +111,28 @@ function parseBranch(branch) {
       core.info(`Incorrect year: ${year}`);
       return {
         year: null, 
-        servicePack: null
+        update: null
       }; 
     }
 
     return {
       year,
-      servicePack: null
+      update: null
     };
   }
 
   core.info("Branch could not be matched")
   return {
     year: null,
-    servicePack: null
+    update: null
   }
 }
 
 function updateConfig(config, branch) {
   let cy = config.year;
-  let cup = parseServicePack(config.servicePack);
+  let cup = parseUpdate(config.update);
   let by = branch.year;
-  let bup = branch.servicePack;
+  let bup = branch.update;
 
   if (cy === null || cup === null) {
     core.info(`Config does not contain year or service pack`);
@@ -152,9 +152,9 @@ function updateConfig(config, branch) {
   }
 
   if (!sameUp) {
-    let servicePack = servicePackToString(bup);
-    core.info(`New service pack detected: updating config with servicePack: ${servicePack}`);
-    config.servicePack = servicePack;
+    let update = updateToString(bup);
+    core.info(`New service pack detected: updating config with update: ${update}`);
+    config.update = update;
   }
 
   return config;
