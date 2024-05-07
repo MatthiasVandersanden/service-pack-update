@@ -9709,14 +9709,14 @@ function getConfig() {
 }
 
 function parseUpdate(up) {
-  if (/up\d\.\d$/.test(up)) {
+  if (/[su]p\d\.\d$/.test(up)) {
     return {
       min: parseInt(up[4]),
       maj: parseInt(up[2])
     }
   }
 
-  if (/up\d$/.test(up)) {
+  if (/[su]p\d$/.test(up)) {
     return {
       min: 0,
       maj: parseInt(up[2])
@@ -9739,7 +9739,7 @@ function parseBranch(branch) {
     };
   }
 
-  if (!/refs\/heads\/\d\d\d\d(-up\d(\.\d)?)?(-.*)?/.test(branch) && !/refs\/heads\/\d\d\d\d(-sp\d(\.\d)?)?(-.*)?/.test(branch)) {
+  if (!/refs\/heads\/\d\d\d\d(-[su]p\d(\.\d)?)?(-.*)?/.test(branch)) {
     core.info(`Incorrect branch format: ${branch}`);
     return {
       year: null, 
@@ -9750,7 +9750,7 @@ function parseBranch(branch) {
   branch = branch.slice('refs/heads/'.length);
   core.info(`Branch name: ${branch}`);
 
-  if (/\d\d\d\d-up\d(\.\d)?(-.*)?/.test(branch)) {
+  if (/\d\d\d\d-[su]p\d(\.\d)?(-.*)?/.test(branch)) {
     let year = parseInt(branch.substr(0, 4));
     if (year === NaN || year < 2000 || year > 9999) {
       core.info(`Incorrect year: ${error.message}`);
@@ -9761,7 +9761,7 @@ function parseBranch(branch) {
     }
     
     let up = branch.substr(5);
-    if (/up\d\.\d(-.*)?/.test(up)) {
+    if (/[su]p\d\.\d(-.*)?/.test(up)) {
       core.info("Detect minor service pack");
       let maj = parseInt(up[2]);
       let min = parseInt(up[4]);
@@ -9772,7 +9772,7 @@ function parseBranch(branch) {
       };
     }
 
-    if (/up\d(-.*)?/.test(up)) {
+    if (/[su]p\d(-.*)?/.test(up)) {
       core.info("Detect major service pack");
       let maj = parseInt(up[2]);
       let min = 0;
@@ -9816,7 +9816,7 @@ function parseBranch(branch) {
 
 function updateConfig(config, branch) {
   let cy = config.year;
-  let cup = parseUpdate(config.update);
+  let cup = parseUpdate(config.update ?? config.servicePack);
   let by = branch.year;
   let bup = branch.update;
 
